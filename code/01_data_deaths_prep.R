@@ -16,7 +16,6 @@ dt2 <-
          edu2 = 18,
          cause = CAUSA_666)
 
-
 dtxx <- read_csv("data_input/nofetal2021.CSV")
 
 dtx2 <- 
@@ -48,13 +47,10 @@ dts <-
 unique(dts$edu)
 table(dts$edu)
 
-
 dts_s <- 
   dts %>% 
   group_by(date, age, sex) %>% 
   summarise(dts = n())
-
-
 
 
 
