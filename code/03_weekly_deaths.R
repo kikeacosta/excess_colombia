@@ -12,8 +12,8 @@ wks2 <-
   mutate(date = ymd(date),
          year = year %>% as.double()) %>% 
   drop_na(date)
-  
-  
+
+
 dt <-
   read_xlsx("data_input/weekly_deaths.xlsx")
 
