@@ -2,6 +2,7 @@ library(tidyverse)
 library(readxl)
 library(lubridate)
 library(mgcv)
+library(ISOweek)
 
 interpop <- function(db)
 {
@@ -20,7 +21,6 @@ interpop <- function(db)
 # ~~~~~~~~~~~~~~~~~
 est_baseline <- 
   function(db, knots = NA){
-    
     
     if(!is.na(knots)){
       gam_model <- 
@@ -45,7 +45,7 @@ est_baseline <-
     db %>% 
       mutate(bsn = resp,
              p_score = dts / bsn) %>% 
-      left_join(simul_intvals(gam_model, db, 10000),
+      left_join(simul_intvals(gam_model, db, 100),
                 by = "date")
   }
 
