@@ -2,3 +2,5 @@
 .Rhistory
 .RData
 .Ruserdata
+data_inter/first_try_all.rds
+data_inter/master_sex_age.rds
