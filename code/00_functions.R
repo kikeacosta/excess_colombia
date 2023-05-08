@@ -49,6 +49,60 @@ est_baseline <-
                 by = "date")
   }
 
+est_week_trend <- 
+  function(db){
+    
+    wt_m <- 
+      lm(dts ~ t, 
+          weights = w,
+          data = db)
+    
+    resp <- predict(wt_m, newdata = db, type = "response")
+    
+    db %>% 
+      mutate(bsn = resp)
+  }
+
+
+
+est_baseline2 <- 
+  function(db){
+    
+    try(
+      model <- 
+        gam(dts ~ t + 
+              s(week, bs = 'cp') +
+              offset(log(exposure)), 
+            weights = w,
+            data = db, 
+            family = "quasipoisson")
+    )
+    
+    if(exists("model")){
+      test <- 
+        try(
+          resp <- predict(model, newdata = db, type = "response")
+        )
+    }
+    
+    if(exists("test") & class(test) != "try-error" & 
+       model$outer.info$conv == "full convergence" & 
+       exists("model") & 
+       exists("resp")){
+      
+      db %>% 
+        mutate(bsn = resp) %>% 
+        left_join(simul_intvals(model, db, 100),
+                  by = "date")
+      
+    }else{
+      db %>% 
+        mutate(bsn = NA,
+               ll = NA,
+               ul = NA)
+    }
+  }
+
 # bootstrapping using Jonas' method 
 simul_intvals <- function(model, db, nsim){
   # matrix model

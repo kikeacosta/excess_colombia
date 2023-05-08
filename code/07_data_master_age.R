@@ -35,6 +35,8 @@ dt3 <-
   select(year, week, date, geo, sex, age, cause, dts, pop, exposure, t, w) %>% 
   arrange(date, geo, sex, age, cause)  
 
+write_rds(dt3, "data_inter/master_sex_age.rds")
+
 test <- 
   dt3 %>% 
   filter(geo %in% c("Total", "Bogotá", "Atlántico"),
@@ -57,9 +59,9 @@ chunk <-
   ungroup()
 
 test %>% 
-  filter(geo == "Bogotá",
+  filter(geo == "Total",
          age == "TOT",
-         cause == "natural",
+         cause == "total",
          sex != "t",
          year <= 2022) %>% 
   ggplot()+
