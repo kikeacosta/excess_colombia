@@ -1,5 +1,5 @@
-library(tidyverse)
-library(readxl)
+rm(list=ls())
+source("Code/00_functions.R")
 
 pp1 <-
   read_xlsx("data_input/DCD-area-sexo-edad-proypoblacion-dep-2005-2019.xlsx",
@@ -27,11 +27,16 @@ pp3 <-
   separate(sex_age, c("sex", "age"), sep = "_") %>% 
   mutate(age = ifelse(sex %in% c("Total Mujeres", 
                                  "Total Hombres",
-                                 "Total general"), "TOT", age),
+                                 "Total general"), "total", age),
          sex = case_when(sex %in% c("Total Mujeres", "Mujeres") ~ "f",
                          sex %in% c("Total Hombres", "Hombres") ~ "m",
                          sex %in% c("Total general", "Total") ~ "t",
-                         TRUE ~ "na")) %>% 
+                         TRUE ~ "na"),
+         geo = case_when(geo == "Archipiélago de San Andrés" ~ "San Andrés y Providencia",
+                         geo == "Quindio" ~ "Quindío",
+                         geo == "Bogotá, D.C." ~ "Bogotá",
+                         geo == "Total" ~ "total",
+                         TRUE ~ geo)) %>% 
   select(-area)
 
 unique(pp3$sex)
@@ -43,7 +48,7 @@ pp4 <-
   group_by(year, sex, age) %>% 
   summarise(pop = sum(pop)) %>% 
   ungroup() %>% 
-  mutate(geo = "Total", code = "00"))
+  mutate(geo = "total", code = "00"))
 
 # weekly population ====
 # ~~~~~~~~~~~~~~~~~~~~~~
@@ -76,9 +81,9 @@ unique(pop_interpol2$geo)
 unique(pop_interpol2$sex)
 
 pop_interpol2 %>% 
-  filter(geo == "Total",
+  filter(geo == "total",
          sex == "t",
-         age == "TOT") %>% 
+         age == "total") %>% 
   ggplot()+
   geom_line(aes(date, pop2))+
   geom_point(aes(date, pop), col = "red")
@@ -92,7 +97,7 @@ pop2 <-
 
 pop3 <- 
   pop2 %>% 
-  filter(age != "TOT") %>% 
+  filter(age != "total") %>% 
   mutate(age = age %>% as.double(),
          age = case_when(age == 0 ~ age,
                          age %in% 1:4 ~ 1,
@@ -103,9 +108,14 @@ pop3 <-
   ungroup() %>% 
   mutate(age = age %>% as.character()) %>% 
   bind_rows(pop2 %>% 
-              filter(age == "TOT"))
+              filter(age == "total"))
 
 unique(pop3$age)
 
 write_rds(pop3, "data_inter/pop_weekly_sex_age.rds")
+
+pop3 <- read_rds("data_inter/pop_weekly_sex_age.rds")
+
+
+
 

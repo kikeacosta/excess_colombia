@@ -2,12 +2,6 @@ rm(list=ls())
 source("Code/00_functions.R")
 options(scipen=999)
 
-# wks <- 
-#   read_xlsx("data_input/anexos-defunciones-covid-dept-semana-05-2023.xlsx",
-#             sheet = 1,
-#             skip =  10,
-#             col_types = "text")
-
 dt <-
   read_xlsx("data_input/anexos-defunciones-covid-dept-semana-05-2023.xlsx",
             sheet = 2,
@@ -32,7 +26,9 @@ dt2 <-
                            TRUE ~ "aaaa"),
          sex = str_sub(sex, 1, 1) %>% str_to_lower(),
          dts = dts %>% as.double()) %>% 
-  select(-id)
+  select(-id) %>% 
+  filter(week != "Total")
+  
 
 unique(dt2$geo)
 
@@ -43,10 +39,16 @@ tot1 <-
   group_by(year, week, sex, age, cause) %>% 
   summarise(dts = sum(dts)) %>% 
   ungroup() %>% 
-  mutate(geo = "Total") %>% 
+  mutate(geo = "total") %>% 
   bind_rows(dt2 %>% 
               filter(geo != "Total"))
   
+# # ignoring unknown geo, foreign so far
+# dt5 <- 
+#   dt4 %>% 
+#   filter(!geo %in% c("Extranjero", "Sin información"))
+
+
 # sex imputation
 dt3 <- 
   tot1 %>% 
@@ -59,97 +61,87 @@ dt3 <-
          m2 = m+i*m/(f+m)) %>% 
   select(-f, -m, -i) %>% 
   rename(f = f2, m = m2) %>% 
-  gather(f,m,t, key = sex, value = dts) %>% 
+  gather(f, m, t, key = sex, value = dts) %>% 
   replace_na(list(dts = 0))
 
-# age imputation
-db <-
-  dt3 %>%
-  filter(year == 2015,
-         geo == "Atlántico",
-         sex == "t",
-         week == "Total",
-         cause == "violenta")
-
-age_imp <-
-  function(db){
-    tot <-
-      db %>%
-      filter(age == "Total") %>%
-      pull(dts)
-
-    out <-
-      db %>%
-      filter(!age %in% c("Total", "Edad desconocida")) %>%
-      mutate(dts2 = (dts/sum(dts))*tot)
-
-    return(out)
-  }
-
-# pausing age inmputation (>30 mins)
-# dt4 <- 
-#   dt3 %>%
-#   group_by(year, geo, sex, week, cause) %>% 
-#   do(age_imp(db = .data)) %>% 
-#   ungroup()
-#   spread()
-
-unique(dt3$age)
-# ignoring unknown age so far
-tots <- 
-  dt3 %>% 
-  filter(age == "Total")
-
+# cause imputation
 dt4 <- 
   dt3 %>% 
-  filter(!age %in% c("Total", "Edad desconocida")) %>% 
+  spread(cause, dts) %>% 
+  mutate(total = natural+violenta+estudio,
+         nat = ifelse(total == 0, 0,
+                      natural+estudio*natural/total),
+         vio = ifelse(total == 0, 0,
+                      violenta+estudio*violenta/total)) %>% 
+  select(-natural, -violenta, -estudio) %>% 
+  gather(nat, vio, total, key = cause, value = dts) %>% 
+  arrange(year, week, geo, cause, sex, age) %>% 
+  mutate(cause = case_when(cause == "nat" ~ "natural",
+                           cause == "vio" ~ "violenta",
+                           TRUE ~ cause))
+
+unique(dt4$age)
+
+# age imputation
+tots_age <- 
+  dt4 %>% 
+  filter(age == "Total") %>% 
+  rename(dts_tot = dts) %>% 
+  select(-age)
+
+dt5 <-
+  dt4 %>%
+  filter(!age %in% c("Total", "Edad desconocida")) %>%
+  group_by(year, week, geo, cause, sex) %>%
+  mutate(knw_tot = sum(dts),
+         ci = ifelse(knw_tot == 0, 0, dts/sum(dts))) %>%
+  ungroup() %>% 
+  left_join(tots_age) %>% 
+  mutate(dts2 = dts_tot * ci) %>% 
+  select(-ci, -dts, -dts_tot, - knw_tot) %>% 
   mutate(age = str_replace(age, "De ", ""),
          age = str_sub(age, 1, 2),
          age = ifelse(age == "Me",  0, age %>% as.double()),
          age = age %>% as.character()) %>% 
-  bind_rows(tots %>% 
-              mutate(age = "TOT"))
+  rename(dts = dts2) %>% 
+  bind_rows(tots_age %>% rename(dts = dts_tot) %>% mutate(age = "total")) %>% 
+  arrange(year, week, geo, cause, sex, age)
 
+
+unique(dt5$geo)
 
 # geo imputation
 # ~~~~~~~~~~~~~~
-geo_imp <-
-  function(db){
-    tot <-
-      db %>%
-      filter(geo == "Total") %>%
-      pull(dts)
-    
-    out <-
-      db %>%
-      filter(!geo %in% c("Total", "Edad desconocida")) %>%
-      mutate(dts2 = (dts/sum(dts))*tot)
-    
-    return(out)
-  }
-
-# ignoring unknown geo, foreign so far
-dt5 <- 
-  dt4 %>% 
-  filter(!geo %in% c("Extranjero", "Sin información"))
-
-unique(dt5$geo)
-unique(dt5$age)
-unique(dt5$sex)
-
-# all causes
-# ~~~~~~~~~~
-dt6 <- 
+tots_geo <- 
   dt5 %>% 
-  spread(cause, dts) %>% 
-  mutate (total = estudio + natural + violenta) %>% 
-  gather(total, estudio, natural, violenta, key = cause, value = dts)
+  filter(geo == "total") %>% 
+  rename(dts_tot = dts) %>% 
+  select(-geo)
+
+dt6 <-
+  dt5 %>%
+  filter(!geo %in% c("total", "Sin información", "Extranjero")) %>%
+  group_by(year, week, cause, sex, age) %>%
+  mutate(knw_tot = sum(dts),
+         ci = ifelse(knw_tot == 0, 0, dts/sum(dts))) %>%
+  ungroup() %>% 
+  left_join(tots_geo) %>% 
+  mutate(dts2 = dts_tot * ci) %>% 
+  select(-ci, -dts, -dts_tot, - knw_tot)  %>% 
+  rename(dts = dts2) %>% 
+  bind_rows(tots_geo %>% rename(dts = dts_tot) %>% mutate(geo = "total")) %>% 
+  arrange(year, week, geo, cause, sex, age)
+
+unique(dt6$geo)
+unique(dt6$cause)
+unique(dt6$sex)
+unique(dt6$age)
 
 
 # adding dates ====
 dt7 <- 
   dt6 %>% 
-  filter(week != "Total") %>% 
+  # filter(week != "Total") %>% 
   mutate(week = str_replace(week, "semana |Semana ", ""),
          week = week %>% as.double(),
          isoweek = paste0(year, "-W", sprintf("%02d", week), "-7"),
@@ -157,8 +149,8 @@ dt7 <-
   arrange(date, sex, geo)
 
 dt7 %>% 
-  filter(geo == "Total",
-         age == "TOT",
+  filter(geo == "total",
+         age == "total",
          sex == "t") %>% 
   ggplot()+
   geom_point(aes(date, dts))+
@@ -167,7 +159,7 @@ dt7 %>%
 
 dt7 %>% 
   filter(geo == "Amazonas",
-         age == "TOT",
+         age == "total",
          sex == "t") %>% 
   ggplot()+
   geom_point(aes(date, dts))+

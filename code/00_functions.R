@@ -3,6 +3,9 @@ library(readxl)
 library(lubridate)
 library(mgcv)
 library(ISOweek)
+library(viridis)
+
+options(scipen=999)
 
 interpop <- function(db)
 {
